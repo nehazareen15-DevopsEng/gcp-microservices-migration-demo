@@ -1,18 +1,16 @@
-name: CI Pipeline
+name: Build and Push to Artifact Registry
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - "services/**"
-      - ".github/workflows/ci.yml"
+    branches:
+      - main
 
 env:
   PROJECT_ID: cryptic-saga-433621-f0
   GAR_LOCATION: us-central1
-  GAR_REPO: microservices-repo
-  # Artifact Registry hostname for your region:
-  GAR_HOST: us-central1-docker.pkg.dev
+  REPO_NAME: microservices-repo
+  SERVICE_NAME_1: orders-service
+  SERVICE_NAME_2: payments-service
 
 jobs:
   build-and-push:
@@ -22,40 +20,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-- name: Auth to Google Cloud (JSON key from secret)
-  uses: google-github-actions/auth@v2
-  with:
-    credentials_json: ${{ secrets.GCP_SA_KEY }}
-    export_default_credentials: true
+      - name: Auth to Google Cloud (JSON key from secret)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
 
-- name: Setup gcloud
-  uses: google-github-actions/setup-gcloud@v2
-  with:
-    project_id: ${{ env.PROJECT_ID }}
-
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
 
       - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker $GAR_HOST --quiet
+        run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
 
-      # ---------- orders-service ----------
       - name: Build orders-service image
         run: |
-          IMAGE="$GAR_HOST/$PROJECT_ID/$GAR_REPO/orders-service:${{ github.sha }}"
-          docker build -t "$IMAGE" -f services/orders-service/Dockerfile services/orders-service
-          echo "ORDERS_IMAGE=$IMAGE" >> $GITHUB_ENV
+          docker build -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME_1 }}:latest ./orders
 
       - name: Push orders-service image
         run: |
-          docker push "$ORDERS_IMAGE"
+          docker push ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME_1 }}:latest
 
-      # ---------- payments-service ----------
       - name: Build payments-service image
         run: |
-          IMAGE="$GAR_HOST/$PROJECT_ID/$GAR_REPO/payments-service:${{ github.sha }}"
-          docker build -t "$IMAGE" -f services/payments-service/Dockerfile services/payments-service
-          echo "PAYMENTS_IMAGE=$IMAGE" >> $GITHUB_ENV
+          docker build -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME_2 }}:latest ./payments
 
       - name: Push payments-service image
         run: |
-          docker push "$PAYMENTS_IMAGE"
+          docker push ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME_2 }}:latest
